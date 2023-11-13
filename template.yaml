@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: "2010-09-09" # CloudFormation宣言文
+Description: This template is for building and maintaining a Minecraft server.
+
+Mappings:
+  ServerSettings:
+    port:
+      v4: # 59132
+  EC2:
+    ap-northeast-1:
+      Ubuntu2004AMI: # ami-09b18720cb71042df
+    ap-northeast-3:
+      Ubuntu2004AMI: # ami-09d2f3a31110c6ad4
+
+# ============== Minecraftパラメーター ==============
+Parameters: # スタック作成者に入力を求める項目を作成。
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+  MinecraftVersion: # Minecraftのバージョンを指定
+    Type: String
+    Default: # 1.19.30.04
+  ServerName: # Minecraftサーバー名を指定
+    Type: String
+    Default: My-Minecraft-server
+  GameMode: # Minecraftゲームモードを指定
+    Type: String
+    Default: survival
+    AllowedValues:
+      - survival
+      - creative
+      - adventure
+  Difficulty: # Minecraftゲーム難易度を指定
+    Type: String
+    Default: normal #難易度デフォルト設定
+    AllowedValues:
+      - peaceful
+      - easy
+      - normal
+      - hard
+  AllowCheats: # Minecraftゲーム内でのチートON/OFF
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
+  Seed: # Minecraftゲーム生成時のシード値
+    Type: String
+    Default: ""
+    AllowedPattern: "[-0-9]*"
+  DefaultPermission: # Minecraftゲーム内の権限設定
+    Type: String
+    Default: member # 権限のデフォルト設定
+    AllowedValues:
+      - visitor
+      - member
+      - operator
+
+#  ============== リソース ==============
+
+Resources: #作成するリソース
+  InstanceSecurityGroup:
+    #  -------------- セキュリティグループ --------------
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: minecraft
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !FindInMap [ServerSettings, port, v4] # 上記で記載したMapping値を参照
+          ToPort: !FindInMap [ServerSettings, port, v4] # 上記で記載したMapping値を参照
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: !FindInMap [ServerSettings, port, v4] # 上記で記載したMapping値を参照
+          ToPort: !FindInMap [ServerSettings, port, v4] # 上記で記載したMapping値を参照
+          CidrIp: 0.0.0.0/0
+
+  KeyMinecraft:
+    #  -------------- EC2キーペア --------------
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: minecraft
+
+  EC2IAMRole:
+    #  -------------- IAMロール --------------
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: minecraft-SSM-role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - Ref: EC2IAMRole
+      InstanceProfileName: minecraft-EC2InstanceProfile
+
+  EC2Instance:
+    #  -------------- EC2インスタンス --------------
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro # インスタンスタイプ
+      SecurityGroups:
+        - !Ref InstanceSecurityGroup # セキュリティグループを参照
+      KeyName: !Ref KeyMinecraft
+      ImageId: !FindInMap [EC2, !Ref AWS::Region, Ubuntu2004AMI]
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      Tags:
+        - Key: Name
+          Value: minecraft
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/usr/bin/env bash
+            set -eu
+
+            mkdir /var/minecraft && cd /var/minecraft/
+
+            wget -O bedrock-server.zip https://minecraft.azureedge.net/bin-linux/bedrock-server-${minecraft_version}.zip
+
+            sudo apt install -y unzip && unzip bedrock-server.zip
+
+            sed -i -e 's/^\(server-name=\)Dedicated Server/\1${server_name}/g' server.properties
+            sed -i -e 's/^\(gamemode=\)survival/\1${game_mode}/g' server.properties
+            sed -i -e 's/^\(difficulty=\)easy/\1${difficulty}/g' server.properties
+            sed -i -e 's/^\(server-port=\)19132/\1${ip4_port}/g' server.properties
+            sed -i -e 's/^\(allow-cheats=\)false/\1${allow_cheats}/g' server.properties
+            sed -i -e 's/^\(level-seed=\)/\1${seed}/g' server.properties
+            sed -i -e 's/^\(default-player-permission-level=\)member/\1${permission}/g' server.properties
+
+            screen -UAmdS minecraft ./bedrock_server
+
+          - {
+              minecraft_version: !Ref MinecraftVersion,
+              server_name: !Ref ServerName,
+              game_mode: !Ref GameMode,
+              difficulty: !Ref Difficulty,
+              ip4_port: !FindInMap [ServerSettings, port, v4],
+              allow_cheats: !Ref AllowCheats,
+              seed: !Ref Seed,
+              permission: !Ref DefaultPermission,
+            }
