@@ -1,15 +1,15 @@
 AWSTemplateFormatVersion: "2010-09-09" # CloudFormation宣言文
-Description: This template is for building and maintaining a Minecraft server.
+Description: This template is for building and maintaining a BEDROCK Minecraft server.
 
 Mappings:
   ServerSettings:
     port:
-      v4: # 59132
+      v4: # 59132 # ポート番号
   EC2:
     ap-northeast-1:
-      Ubuntu2004AMI: # ami-09b18720cb71042df
+      AmazonLinux2023: ami-098940df4d3292e9a # 利用するAMI IDを入力
     ap-northeast-3:
-      Ubuntu2004AMI: # ami-09d2f3a31110c6ad4
+      AmazonLinux2023: ami-098940df4d3292e9a # 利用するAMI IDを入力
 
 # ============== Minecraftパラメーター ==============
 Parameters: # スタック作成者に入力を求める項目を作成。
@@ -17,10 +17,18 @@ Parameters: # スタック作成者に入力を求める項目を作成。
     Type: AWS::EC2::VPC::Id
   MinecraftVersion: # Minecraftのバージョンを指定
     Type: String
-    Default: # 1.19.30.04
+    Default: 1.20.41.02 # Mincecraft公式サイト https://www.minecraft.net/ja-jp/download/server/bedrock から最新のサーバー情報を取得
   ServerName: # Minecraftサーバー名を指定
     Type: String
-    Default: My-Minecraft-server
+    Default: My-Minecraft-Server
+  MaxPlayers: # 最大プレイヤー数
+    Type: Integer
+    Default: 3
+    AllowedValues:
+      - 1
+      - 2
+      - 3
+      - 4
   GameMode: # Minecraftゲームモードを指定
     Type: String
     Default: survival
@@ -42,7 +50,7 @@ Parameters: # スタック作成者に入力を求める項目を作成。
     AllowedValues:
       - true
       - false
-  Seed: # Minecraftゲーム生成時のシード値
+  Seed: # Minecraftセッション生成時のシード値
     Type: String
     Default: ""
     AllowedPattern: "[-0-9]*"
@@ -83,7 +91,7 @@ Resources: #作成するリソース
     Type: AWS::IAM::Role
     Properties:
       RoleName: minecraft-SSM-role
-      AssumeRolePolicyDocument:
+      AssumeRolePolicyDocument: # 信頼ポリシー
         Version: 2012-10-17
         Statement:
           - Effect: Allow
@@ -108,16 +116,17 @@ Resources: #作成するリソース
     #  -------------- EC2インスタンス --------------
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: t2.micro # インスタンスタイプ
+      InstanceType: t2.micro # 無料枠のインスタンスタイプを利用
       SecurityGroups:
         - !Ref InstanceSecurityGroup # セキュリティグループを参照
       KeyName: !Ref KeyMinecraft
-      ImageId: !FindInMap [EC2, !Ref AWS::Region, Ubuntu2004AMI]
+      ImageId: !FindInMap [EC2, !Ref AWS::Region, AmazonLinux2023]
       IamInstanceProfile: !Ref EC2InstanceProfile
       Tags:
         - Key: Name
           Value: minecraft
       UserData:
+        #  -------------- EC2インスタンスにスクリプト組み込む --------------
         Fn::Base64: !Sub
           - |
             #!/usr/bin/env bash
@@ -130,8 +139,9 @@ Resources: #作成するリソース
             sudo apt install -y unzip && unzip bedrock-server.zip
 
             sed -i -e 's/^\(server-name=\)Dedicated Server/\1${server_name}/g' server.properties
+            sed -i -e 's/^\(max-players=\)Dedicated Server/\1${max-players}/g' server.properties
             sed -i -e 's/^\(gamemode=\)survival/\1${game_mode}/g' server.properties
-            sed -i -e 's/^\(difficulty=\)easy/\1${difficulty}/g' server.properties
+            sed -i -e 's/^\(difficulty=\)normal/\1${difficulty}/g' server.properties
             sed -i -e 's/^\(server-port=\)19132/\1${ip4_port}/g' server.properties
             sed -i -e 's/^\(allow-cheats=\)false/\1${allow_cheats}/g' server.properties
             sed -i -e 's/^\(level-seed=\)/\1${seed}/g' server.properties
@@ -142,6 +152,7 @@ Resources: #作成するリソース
           - {
               minecraft_version: !Ref MinecraftVersion,
               server_name: !Ref ServerName,
+              max_players: !Ref MaxPlayers,
               game_mode: !Ref GameMode,
               difficulty: !Ref Difficulty,
               ip4_port: !FindInMap [ServerSettings, port, v4],
