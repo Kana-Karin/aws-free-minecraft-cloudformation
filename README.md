@@ -1,13 +1,12 @@
-### AWS CloudFormation を利用して Mincecraft サーバーを構築
+### AWSCloudFormationを利用してMincecraftサーバーを構築
 
 ## 概要
 
 CloudFormation をより深掘りして学んでいく為、AWS 無料枠内で 実際に遊べる Minecraft のサーバー構築を利用したアウトプットをしていきます。
-
 - EC2 インスタンスを起動時に ElasticIPでIPアドレスの固定をしないと、毎起動時に Public IPアドレスが変わってしまいます。
   ですが、ElasticIPは1日16円ほどの料金が発生する為、今回は検証、アウトプットを含めた構築なので利用しません。
 - AWSの無料枠では、t2.microインスタンス1か月あたり 750時間まで無料です。
-- **Minecraft サーバーはデフォルトで2GBのRAM**を必要とするため、**無料枠 t2.micro インスタンスには1GBのRAM**しかありません。サーバーのパフォーマンスに影響が出る可能性があります。
+- **Minecraft サーバーはデフォルトで2GBのRAM**を必要とするため、**無料枠 t2.micro インスタンスには1GBのRAM**しかありません。起動できない可能性があります。
 - Amazon Linux AMI を利用し、起動時に Minecraft サーバーをインストールして実行するようスクリプトを組みます。
 
 ## 前提条件
