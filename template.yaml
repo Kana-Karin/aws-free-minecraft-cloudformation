@@ -4,7 +4,7 @@ Description: This template is for building and maintaining a BEDROCK Minecraft s
 Mappings:
   ServerSettings:
     port:
-      v4: # 59132 # ポート番号
+      v4: 59132 # ポート番号
   EC2:
     ap-northeast-1:
       AmazonLinux2023: ami-098940df4d3292e9a # 利用するAMI IDを入力
@@ -22,7 +22,7 @@ Parameters: # スタック作成者に入力を求める項目を作成。
     Type: String
     Default: My-Minecraft-Server
   MaxPlayers: # 最大プレイヤー数
-    Type: Integer
+    Type: String
     Default: 3
     AllowedValues:
       - 1
@@ -126,7 +126,6 @@ Resources: #作成するリソース
         - Key: Name
           Value: minecraft
       UserData:
-        #  -------------- EC2インスタンスにスクリプト組み込む --------------
         Fn::Base64: !Sub
           - |
             #!/usr/bin/env bash
@@ -139,7 +138,7 @@ Resources: #作成するリソース
             sudo apt install -y unzip && unzip bedrock-server.zip
 
             sed -i -e 's/^\(server-name=\)Dedicated Server/\1${server_name}/g' server.properties
-            sed -i -e 's/^\(max-players=\)Dedicated Server/\1${max-players}/g' server.properties
+            sed -i -e 's/^\(max-players=\)Dedicated Server/\1${max_players}/g' server.properties
             sed -i -e 's/^\(gamemode=\)survival/\1${game_mode}/g' server.properties
             sed -i -e 's/^\(difficulty=\)normal/\1${difficulty}/g' server.properties
             sed -i -e 's/^\(server-port=\)19132/\1${ip4_port}/g' server.properties
